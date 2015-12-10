@@ -1,0 +1,8 @@
+mandelbarf! bleauuuugh!
+
+build:
+$ GOPATH=$PWD go build mandelbarf
+run:
+$ ./mandelbarf
+admire:
+$ feh out.png

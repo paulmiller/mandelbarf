@@ -20,6 +20,22 @@ close to z and never trend away
 that point is in the mandelbrot set
 */
 
+// Settings
+
+const xMin = -2.0
+const xMax =  1.0
+const yMin = -1.0
+const yMax =  1.0
+
+const outFileName = "out.png"
+const imgCols = 6144
+const imgRows = 4096
+const scale = 6 // Supersample by this much in both dimensions
+const escapeThresh = 100.0 // Treat a point as escaping if it exceeds this
+
+const workerNum = 6
+const chunkNum = 100 // Divide the image into this many chunks
+
 // Image implementation
 
 type img struct {
@@ -58,6 +74,8 @@ func (i img) set(x, y int, c color.RGBA) {
   }
 }
 
+// img utilities
+
 func mkImg(cols, rows int) img {
   return img{
     cols,
@@ -92,6 +110,8 @@ func downScale(in img, scale int) img {
   return out
 }
 
+// Math!
+
 // Map x from the range x1,y1 to x2,y2
 func linear(x, x1, x2, y1, y2 float64) float64 {
   slope := (y2 - y1) / (x2 - x1)
@@ -105,7 +125,7 @@ func mandelbrot(c complex128) int {
   var i int
   for i = 0; i < 256; i++ {
     z = z*z + c
-    if cmplx.Abs(z) > 100.0 {
+    if cmplx.Abs(z) > escapeThresh {
       break
     }
   }
@@ -124,9 +144,9 @@ func work(i img, chunks chan rowRange, flag chan int) {
       break
     }
     for r := chunk.startRow; r < chunk.stopRow; r++ {
-      y := linear(float64(r), 0.0, float64(i.rows-1), 1.0, -1.0)
+      y := linear(float64(r), 0.0, float64(i.rows-1), yMax, yMin)
       for c := 0; c < i.cols; c++ {
-        x := linear(float64(c), 0.0, float64(i.cols-1), -2.0, 1.0)
+        x := linear(float64(c), 0.0, float64(i.cols-1), xMin, xMax)
         v := mandelbrot(complex(x, y))
         i.set(c, r, color.RGBA{0, uint8(v), uint8(v), 255})
       }
@@ -136,11 +156,7 @@ func work(i img, chunks chan rowRange, flag chan int) {
 }
 
 func main() {
-  scale := 6 // Supersample by scale in both dimensions
-  render := mkImg(6144*scale, 4096*scale)
-
-  workerNum := 6
-  chunkNum := 100
+  render := mkImg(imgCols * scale, imgRows * scale)
   chunkRows := render.rows / chunkNum
 
   // Queue up chunks of work on a channel
@@ -172,7 +188,7 @@ func main() {
 
   renderSmall := downScale(render, scale)
 
-  outFile, err := os.Create("out.png")
+  outFile, err := os.Create(outFileName)
   defer outFile.Close()
   if err != nil {
     fmt.Println(err)
